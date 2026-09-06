@@ -1,0 +1,14 @@
+{
+  "normal_flow": [
+    "What's the status of part 4472?",
+    "Is bay four clear right now?",
+    "What's my next scheduled job?",
+    "Log that the compressor unit passed inspection.",
+    "What's the weather at the site?"
+  ],
+  "stress_case": {
+    "trigger": "Check the status of part 9911.",
+    "interrupt_after_s": 1.0,
+    "interrupt_with": "Actually, cancel that, tell me the weather at the site instead."
+  }
+}

@@ -1,0 +1,8 @@
+livekit-agents==1.8.0
+livekit-plugins-deepgram==1.8.0
+livekit-plugins-groq==1.8.0
+livekit-plugins-rime==1.8.0
+livekit-plugins-silero==1.8.0
+python-dotenv==1.1.0
+fastapi==0.115.12
+uvicorn[standard]==0.34.2

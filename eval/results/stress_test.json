@@ -1,0 +1,128 @@
+{
+  "trials": 10,
+  "passed": 10,
+  "failed": 0,
+  "success_rate": 1.0,
+  "results": [
+    {
+      "passed": true,
+      "first_generation": 1,
+      "second_generation": 2,
+      "stale_result_discarded": true,
+      "replacement_completed": true,
+      "replacement_response": "28 degrees Celsius and clear",
+      "interruption_to_fence_ms": 3.1609459999799583,
+      "elapsed_ms": 20.40654400002495,
+      "first_turn_id": "4f1a3a64-dc81-4e7f-a472-65056b4668af",
+      "second_turn_id": "8611ec2c-b10e-4318-8c72-84f30234b91e"
+    },
+    {
+      "passed": true,
+      "first_generation": 1,
+      "second_generation": 2,
+      "stale_result_discarded": true,
+      "replacement_completed": true,
+      "replacement_response": "28 degrees Celsius and clear",
+      "interruption_to_fence_ms": 3.1392810001307225,
+      "elapsed_ms": 20.39580499990734,
+      "first_turn_id": "eb175c15-f087-4e4d-b256-9dfcb99b0f81",
+      "second_turn_id": "c97bc01e-239e-4374-99e2-4d7c6b260c32"
+    },
+    {
+      "passed": true,
+      "first_generation": 1,
+      "second_generation": 2,
+      "stale_result_discarded": true,
+      "replacement_completed": true,
+      "replacement_response": "28 degrees Celsius and clear",
+      "interruption_to_fence_ms": 3.1184959998427075,
+      "elapsed_ms": 20.303307999938625,
+      "first_turn_id": "94f73390-fbed-4cf3-b6cf-d148bc0c8480",
+      "second_turn_id": "ebcd9d9e-7021-42fc-a04d-fb58e76b754a"
+    },
+    {
+      "passed": true,
+      "first_generation": 1,
+      "second_generation": 2,
+      "stale_result_discarded": true,
+      "replacement_completed": true,
+      "replacement_response": "28 degrees Celsius and clear",
+      "interruption_to_fence_ms": 3.104575999941517,
+      "elapsed_ms": 20.299797000006947,
+      "first_turn_id": "827c43aa-4405-4e27-a0c5-c43502b9d6de",
+      "second_turn_id": "858aed21-97f0-4ebb-8016-07740af588ba"
+    },
+    {
+      "passed": true,
+      "first_generation": 1,
+      "second_generation": 2,
+      "stale_result_discarded": true,
+      "replacement_completed": true,
+      "replacement_response": "28 degrees Celsius and clear",
+      "interruption_to_fence_ms": 3.187375000152315,
+      "elapsed_ms": 20.425936000037836,
+      "first_turn_id": "6d94758c-eecd-4f04-a477-c5bd7da4743d",
+      "second_turn_id": "714954a4-30b1-4658-a89b-f027fbb84647"
+    },
+    {
+      "passed": true,
+      "first_generation": 1,
+      "second_generation": 2,
+      "stale_result_discarded": true,
+      "replacement_completed": true,
+      "replacement_response": "28 degrees Celsius and clear",
+      "interruption_to_fence_ms": 3.1483929999467364,
+      "elapsed_ms": 20.411818999946263,
+      "first_turn_id": "a39ebd67-6d7a-4d1a-9663-3cab80678e52",
+      "second_turn_id": "9ba037de-43f1-48ec-a1b5-c668529125a9"
+    },
+    {
+      "passed": true,
+      "first_generation": 1,
+      "second_generation": 2,
+      "stale_result_discarded": true,
+      "replacement_completed": true,
+      "replacement_response": "28 degrees Celsius and clear",
+      "interruption_to_fence_ms": 3.164628000149605,
+      "elapsed_ms": 20.45932000009998,
+      "first_turn_id": "91b783c1-8c25-4e42-bb2e-1ffb70138f4f",
+      "second_turn_id": "6f4e493d-0a3d-46b3-a215-98edc5c69854"
+    },
+    {
+      "passed": true,
+      "first_generation": 1,
+      "second_generation": 2,
+      "stale_result_discarded": true,
+      "replacement_completed": true,
+      "replacement_response": "28 degrees Celsius and clear",
+      "interruption_to_fence_ms": 3.1372969999665656,
+      "elapsed_ms": 20.360239999945406,
+      "first_turn_id": "59099697-fe71-4f60-aee7-12130c6eeb55",
+      "second_turn_id": "fd330308-6ae3-4ef6-8312-a1459663db85"
+    },
+    {
+      "passed": true,
+      "first_generation": 1,
+      "second_generation": 2,
+      "stale_result_discarded": true,
+      "replacement_completed": true,
+      "replacement_response": "28 degrees Celsius and clear",
+      "interruption_to_fence_ms": 3.130330999965736,
+      "elapsed_ms": 20.33683700005895,
+      "first_turn_id": "6f1afa1a-2d93-49ea-9cef-499ec9c9d724",
+      "second_turn_id": "4ed6972b-a4bc-40d3-bd3d-36953cc11bfe"
+    },
+    {
+      "passed": true,
+      "first_generation": 1,
+      "second_generation": 2,
+      "stale_result_discarded": true,
+      "replacement_completed": true,
+      "replacement_response": "28 degrees Celsius and clear",
+      "interruption_to_fence_ms": 3.119003999927372,
+      "elapsed_ms": 20.328629000005094,
+      "first_turn_id": "775453e1-a71e-4571-925b-be8de44f7544",
+      "second_turn_id": "579ec5d4-2c85-4c96-9424-514832d92269"
+    }
+  ]
+}

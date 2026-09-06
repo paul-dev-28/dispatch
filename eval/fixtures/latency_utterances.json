@@ -1,0 +1,22 @@
+[
+  {"utterance":"What's the status of part 4472?","expected_tool":"lookup_part_status","expected_args":{"part_number":"4472"}},
+  {"utterance":"What's the status of part 9911?","expected_tool":"lookup_part_status","expected_args":{"part_number":"9911"}},
+  {"utterance":"Is bay four clear right now?","expected_tool":"check_bay_status","expected_args":{"bay":"4"}},
+  {"utterance":"Is bay seven clear right now?","expected_tool":"check_bay_status","expected_args":{"bay":"7"}},
+  {"utterance":"Can you check stock on the hydraulic seal kit?","expected_tool":"lookup_part_status","expected_args":{"part_number":"hydraulic seal kit"}},
+  {"utterance":"What's my next scheduled job?","expected_tool":"get_next_job","expected_args":{}},
+  {"utterance":"What is my next job?","expected_tool":"get_next_job","expected_args":{}},
+  {"utterance":"Log that the compressor unit passed inspection.","expected_tool":"log_inspection","expected_args":{"result":"passed"}},
+  {"utterance":"Log that the compressor unit failed inspection.","expected_tool":"log_inspection","expected_args":{"result":"failed"}},
+  {"utterance":"What's the weather at the site?","expected_tool":"get_site_weather","expected_args":{}},
+  {"utterance":"Check the weather at the site.","expected_tool":"get_site_weather","expected_args":{}},
+  {"utterance":"Tell me if bay four is clear.","expected_tool":"check_bay_status","expected_args":{"bay":"4"}},
+  {"utterance":"Check part 4472 again.","expected_tool":"lookup_part_status","expected_args":{"part_number":"4472"}},
+  {"utterance":"Look up part 9911.","expected_tool":"lookup_part_status","expected_args":{"part_number":"9911"}},
+  {"utterance":"What is scheduled next?","expected_tool":"get_next_job","expected_args":{}},
+  {"utterance":"Record that the compressor unit passed inspection.","expected_tool":"log_inspection","expected_args":{"result":"passed"}},
+  {"utterance":"Can you check bay seven?","expected_tool":"check_bay_status","expected_args":{"bay":"7"}},
+  {"utterance":"How many units of part 4472 are in stock?","expected_tool":"lookup_part_status","expected_args":{"part_number":"4472"}},
+  {"utterance":"Give me the site weather.","expected_tool":"get_site_weather","expected_args":{}},
+  {"utterance":"Check the status of part 9911.","expected_tool":"lookup_part_status","expected_args":{"part_number":"9911"}}
+]
