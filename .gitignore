@@ -16,3 +16,5 @@ eval/results/interruption_trials.json
 !.env.example
 *.pem
 *.key
+.DS_Store
+.env.example
