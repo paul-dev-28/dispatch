@@ -26,6 +26,15 @@ async def entrypoint(ctx: JobContext):
 
     Agents 1.8 emits ``overlapping_speech``; it does not expose the unsupported
     ``user_interruption_detected`` event. Only a confirmed overlap advances a generation.
+
+    Interruption ownership (single authoritative path):
+      - turn_handling.interruption (mode="vad") owns ALL barge-in / playback
+        cancellation automatically. No handler in this file calls
+        session.interrupt() for ordinary barge-in.
+      - FieldAssistant.on_user_turn_completed (pipeline.py) owns blocking a
+        reply for recognized voice-control commands ("stop", "cancel", ...),
+        with a defensive/idempotent session.interrupt() as a safety net for
+        that specific case only.
     """
     validate_environment()
     await ctx.connect()
@@ -59,6 +68,8 @@ async def entrypoint(ctx: JobContext):
             sample_rate=cfg.sample_rate,
         ),
 
+        use_tts_aligned_transcript=True,
+
         turn_handling={
             "turn_detection": inference.TurnDetector(),
             "endpointing": {
@@ -68,12 +79,21 @@ async def entrypoint(ctx: JobContext):
             },
             "interruption": {
                 "enabled": True,
-                "mode": "adaptive",
+                "mode": "vad",
 
-                "min_duration": 0.08,
-                "min_words": 1,
+                # 0.08s/1 word (below LiveKit's documented default of 0.5s)
+                # was triggering on breaths, mic noise, and single-syllable
+                # blips before STT had confirmed a real word. 0.2s + 2 words
+                # keeps barge-in snappy but requires actual confirmed speech.
+                "min_duration": 0.2,
+                "min_words": 2,
 
-                "false_interruption_timeout": 0.9,
+                # 0.9s (below LiveKit's documented default of 2.0s) was
+                # shorter than STT finalization time for longer sentences,
+                # so the framework was classifying genuine new turns as
+                # false interruptions and resuming stale agent speech
+                # mid-sentence instead of waiting for the real new turn.
+                "false_interruption_timeout": 1.8,
                 "resume_false_interruption": True,
 
                 "discard_audio_if_uninterruptible": True,
@@ -102,9 +122,24 @@ async def entrypoint(ctx: JobContext):
             generation=new_generation,
             transcript=event.transcript,
         )
+        # NOTE: a per-turn "user_state_changed" listener that forced
+        # session.interrupt(force=True) used to be registered here. It has
+        # been removed for two reasons: (1) it re-registered a new listener
+        # on every finalized turn, stacking duplicate handlers over the
+        # session; (2) it bypassed the configured
+        # interruption.min_duration/min_words gating above and duplicated
+        # what turn_handling.interruption already does automatically.
 
     @session.on("overlapping_speech")
     def on_overlap(event):
+        # NOTE: interruption.mode is "vad" here, so the adaptive interruption
+        # detector that emits this event isn't constructed and this handler
+        # will not currently fire. It's kept as a log-only observer in case
+        # the mode is ever switched to "adaptive". Playback cancellation is
+        # owned entirely by turn_handling.interruption (barge-in) and by the
+        # explicit session.interrupt() in FieldAssistant.on_user_turn_completed
+        # for recognized control commands — do not add a session.interrupt()
+        # call here too.
         if not event.is_interruption:
             return
 
@@ -165,7 +200,11 @@ async def entrypoint(ctx: JobContext):
     await session.start(
         agent=FieldAssistant(),
         room=ctx.room,
-        room_input_options=RoomInputOptions(),
+        room_options=room_io.RoomOptions(
+            text_output=room_io.TextOutputOptions(
+                sync_transcription=True,
+            ),
+        ),
     )
 
     log_event(turn_id, "session_started", session_id=guard.session_id, generation=generation,

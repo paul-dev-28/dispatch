@@ -2,7 +2,7 @@ import {
   useRoomContext,
   useVoiceAssistant,
 } from "@livekit/components-react";
-import { RoomEvent } from "livekit-client";
+
 import { useEffect, useState } from "react";
 
 export default function VoicePanel() {
@@ -15,46 +15,73 @@ export default function VoicePanel() {
   useEffect(() => {
     if (!room) return;
 
-    const handleTranscription = (segments, participant) => {
-      const isUser =
-        participant?.identity === room.localParticipant.identity;
+    const handleTranscription = async (reader, participantInfo) => {
+      try {
+        const participantIdentity =
+          participantInfo?.identity ?? participantInfo;
 
-      for (const segment of segments) {
-        if (!segment.text) continue;
+        const attributes = reader.info?.attributes ?? {};
 
-        setMessages((previous) => {
-          const id = segment.id;
+        const segmentId = attributes["lk.segment_id"];
+        const isFinal =
+          attributes["lk.transcription_final"] === "true";
 
-          const existing = previous.findIndex(
-            (m) => m.id === id
-          );
+        const trackId =
+          attributes["lk.transcribed_track_id"];
 
-          const message = {
-            id,
-            speaker: isUser ? "You" : "AI",
-            text: segment.text,
-          };
+        if (!segmentId) return;
 
-          if (existing !== -1) {
+        const isUser =
+          participantIdentity === room.localParticipant.identity;
+
+        let accumulatedText = "";
+
+        for await (const chunk of reader) {
+            const delta =
+              typeof chunk === "string"
+                ? chunk
+                : chunk.current ?? "";
+
+            accumulatedText += delta;
+
+            const text = accumulatedText.trim();
+          if (!text) continue;
+
+          setMessages((previous) => {
+            const message = {
+              id: segmentId,
+              speaker: isUser ? "You" : "AI",
+              text,
+              final: isFinal,
+              trackId,
+            };
+
+            const index = previous.findIndex(
+              (item) => item.id === segmentId
+            );
+
+            if (index === -1) {
+              return [...previous, message];
+            }
+
             const updated = [...previous];
-            updated[existing] = message;
+            updated[index] = message;
             return updated;
-          }
-
-          return [...previous, message];
-        });
+          });
+        }
+      } catch (error) {
+        console.error("Transcription stream error:", error);
       }
     };
 
-    room.on(
-      RoomEvent.TranscriptionReceived,
+    room.registerTextStreamHandler(
+      "lk.transcription",
       handleTranscription
     );
 
     return () => {
-      room.off(
-        RoomEvent.TranscriptionReceived,
-        handleTranscription
+      room.unregisterTextStreamHandler(
+        "lk.transcription"
       );
     };
   }, [room]);
