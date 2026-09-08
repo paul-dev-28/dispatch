@@ -2,7 +2,6 @@ import { LiveKitRoom, StartAudio } from "@livekit/components-react";
 import { useEffect, useState } from "react";
 import ProviderBadge from "./components/ProviderBadge.jsx";
 import PlaybackMetrics from "./components/PlaybackMetrics.jsx";
-import StatusBoard from "./components/StatusBoard.jsx";
 import VoicePanel from "./components/VoicePanel.jsx";
 
 const TOKEN_SERVER = import.meta.env.VITE_TOKEN_SERVER_URL || "http://localhost:8000";
@@ -32,9 +31,10 @@ export default function App() {
   return (
     <LiveKitRoom serverUrl={conn.url} token={conn.token} audio connect className="app-shell">
       <StartAudio label="Enable audio" />
-      <ProviderBadge />
+      <header className="app-header">
+        <ProviderBadge />
+      </header>
       <VoicePanel />
-      <StatusBoard />
       <PlaybackMetrics />
     </LiveKitRoom>
   );

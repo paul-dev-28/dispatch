@@ -70,13 +70,14 @@ const latest = useMemo(() => {
 
   return (
     <section className="status-board">
-      <div className="board-title">VOICE PERFORMANCE {latest.turnId ? `· TURN ${latest.turnId.slice(0, 8)}` : ""}</div>
+      <div className="board-title">
+        Latency{latest.turnId ? ` · turn ${latest.turnId.slice(0, 8)}` : ""}
+      </div>
       <div className="metric-grid">
-        <div><span>EOU</span><strong>{ms(latest.eou)}</strong></div>
-        <div><span>LLM TTFT</span><strong>{ms(latest.ttft)}</strong></div>
-        <div><span>Rime TTFB</span><strong>{ms(latest.ttfb)}</strong></div>
-        <div><span>Playback</span><strong>{latest.playback ? "started" : "—"}</strong></div>
-        <div><span>End-to-end</span><strong>{latest.endToEnd == null ? "—" : `${latest.endToEnd.toFixed(0)} ms`}</strong></div>
+        <div><span>STT</span><strong>{ms(latest.eou)}</strong></div>
+        <div><span>LLM</span><strong>{ms(latest.ttft)}</strong></div>
+        <div><span>TTS</span><strong>{ms(latest.ttfb)}</strong></div>
+        <div><span>Total</span><strong>{latest.endToEnd == null ? "—" : `${latest.endToEnd.toFixed(0)} ms`}</strong></div>
       </div>
       <div className="recovery-row">
         <span>Interruption <b>{latest.interrupted ? "✓" : "—"}</b></span>
