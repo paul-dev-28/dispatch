@@ -1,4 +1,4 @@
-# Dispatch --- Hands-Free Field Technician Voice Assistant
+# Dispatch - Hands Free Field Technician Voice Assistant
 
 Dispatch is a full-duplex, hands-free voice assistant designed for field
 technicians. It combines real-time speech recognition, Gemini reasoning,
