@@ -131,8 +131,8 @@ Dispatch/
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/paul-dev-28/vce2.git
-cd vce2
+git clone https://github.com/paul-dev-28/dispatch.git
+cd dispatch
 ```
 
 ### 2. Create Python Environment
