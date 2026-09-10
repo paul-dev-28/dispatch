@@ -25,7 +25,7 @@ response, and answer the replacement request.
 
 ## Demo Interface
 
-![Dispatch web application](screenshots/web-app.png)
+![Dispatch web application](docs/images/dispatch-web-app.png)
 
 The web application provides:
 
@@ -43,7 +43,7 @@ The web application provides:
 
 ## System Architecture
 
-![Dispatch architecture](screenshots/architecture.jpeg)
+![Dispatch architecture](docs/images/dispatch-architecture.png)
 
 The runtime pipeline is:
 
