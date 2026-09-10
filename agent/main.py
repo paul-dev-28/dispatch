@@ -10,14 +10,16 @@ from livekit.agents import (
     inference,
     room_io,
 )
+
 from livekit.agents.metrics import (
     EOUMetrics,
     LLMMetrics,
     TTSMetrics,
 )
+
 from livekit.plugins import (
     deepgram,
-    groq,
+    google,
     rime,
     silero,
 )
@@ -30,7 +32,6 @@ from provider_config import (
     validate_environment,
 )
 
-
 load_dotenv()
 
 
@@ -38,16 +39,15 @@ async def entrypoint(ctx: JobContext):
     """
     Dispatch voice-agent entrypoint.
 
-    Hard interruption model:
+    Interruption flow:
 
-    1. Native VAD detects barge-in.
-    2. overlapping_speech immediately invalidates the old generation.
-    3. Already queued LiveKit audio is cleared immediately.
-    4. Current LiveKit speech is forcefully interrupted.
-    5. Old LLM/TTS streams become stale.
-    6. Old TTS streams close themselves in pipeline.py.
-    7. The finalized user turn gets its own fresh generation.
-    8. False interruptions are never resumed.
+    1. VAD detects barge-in.
+    2. The current generation is invalidated immediately.
+    3. Any queued output audio is cleared.
+    4. Current speech is forcefully interrupted.
+    5. Old LLM/TTS streams see the stale generation and terminate.
+    6. The finalized user turn receives a fresh generation.
+    7. The new question is processed normally.
     """
 
     validate_environment()
@@ -73,8 +73,8 @@ async def entrypoint(ctx: JobContext):
             language="en",
         ),
 
-        llm=groq.LLM(
-            model="openai/gpt-oss-20b",
+        llm=google.LLM(
+            model="gemini-3.6-flash",
         ),
 
         tts=rime.TTS(
@@ -87,7 +87,7 @@ async def entrypoint(ctx: JobContext):
             sample_rate=cfg.sample_rate,
         ),
 
-        use_tts_aligned_transcript=False,
+        use_tts_aligned_transcript=True,
 
         turn_handling={
             "turn_detection": inference.TurnDetector(),
@@ -104,7 +104,6 @@ async def entrypoint(ctx: JobContext):
                 "min_duration": 0.2,
                 "min_words": 1,
 
-                # Never allow old speech to resume.
                 "false_interruption_timeout": None,
                 "resume_false_interruption": False,
 
@@ -122,13 +121,8 @@ async def entrypoint(ctx: JobContext):
         },
     )
 
-    # ==========================================================
-    # USER TRANSCRIPTION
-    # ==========================================================
-
     @session.on("user_input_transcribed")
     def on_user_input(event):
-
         print(
             f"[USER TRANSCRIPT] "
             f"final={event.is_final} "
@@ -146,24 +140,12 @@ async def entrypoint(ctx: JobContext):
             transcript=event.transcript,
         )
 
-    # ==========================================================
-    # HARD BARGE-IN
-    # ==========================================================
-
     @session.on("overlapping_speech")
     def on_overlap(event):
-
         if not event.is_interruption:
             return
 
-        # ------------------------------------------------------
-        # THIS IS THE CRITICAL FIX
-        #
-        # Invalidate the old response NOW.
-        #
-        # Do not wait for the user to finish speaking.
-        # ------------------------------------------------------
-
+        # Invalidate the old generation FIRST.
         old_generation = guard.snapshot()
 
         new_generation, new_turn = guard.invalidate()
@@ -181,10 +163,7 @@ async def entrypoint(ctx: JobContext):
             prediction_duration=event.prediction_duration,
         )
 
-        # ------------------------------------------------------
-        # CLEAR AUDIO ALREADY QUEUED FOR PLAYBACK
-        # ------------------------------------------------------
-
+        # Clear anything already queued for playback.
         try:
             if session.output.audio is not None:
                 session.output.audio.clear_buffer()
@@ -197,7 +176,6 @@ async def entrypoint(ctx: JobContext):
                 )
 
         except Exception as exc:
-
             log_event(
                 new_turn,
                 "audio_buffer_clear_failed",
@@ -205,13 +183,6 @@ async def entrypoint(ctx: JobContext):
                 generation=new_generation,
                 error=str(exc),
             )
-
-        # ------------------------------------------------------
-        # FORCE LIVEKIT SPEECH INTERRUPTION
-        # ------------------------------------------------------
-        #
-        # Do not wait for the coroutine here because this callback
-        # is synchronous.
 
         async def stop_current_speech():
             try:
@@ -225,7 +196,6 @@ async def entrypoint(ctx: JobContext):
                 )
 
             except Exception as exc:
-
                 log_event(
                     new_turn,
                     "speech_force_interrupt_failed",
@@ -234,17 +204,10 @@ async def entrypoint(ctx: JobContext):
                     error=str(exc),
                 )
 
-        asyncio.create_task(
-            stop_current_speech()
-        )
-
-    # ==========================================================
-    # FALSE INTERRUPTION
-    # ==========================================================
+        asyncio.create_task(stop_current_speech())
 
     @session.on("agent_false_interruption")
     def on_false_interruption(event):
-
         log_event(
             guard.turn_id or turn_id,
             "false_interruption",
@@ -252,20 +215,11 @@ async def entrypoint(ctx: JobContext):
             generation=guard.snapshot(),
         )
 
-    # ==========================================================
-    # SPEECH CREATED
-    # ==========================================================
-
     @session.on("speech_created")
     def on_speech_created(event):
-
         speech_id = event.speech_handle.id
 
-        speech_turn = (
-            guard.turn_id
-            or turn_id
-        )
-
+        speech_turn = guard.turn_id or turn_id
         speech_generation = guard.snapshot()
 
         speech_context[speech_id] = (
@@ -283,17 +237,12 @@ async def entrypoint(ctx: JobContext):
         )
 
         def completed(handle):
-
-            context = speech_context.get(
-                speech_id
-            )
+            context = speech_context.get(speech_id)
 
             if context is None:
                 return
 
-            correlated_turn, correlated_generation = (
-                context
-            )
+            correlated_turn, correlated_generation = context
 
             log_event(
                 correlated_turn,
@@ -317,17 +266,10 @@ async def entrypoint(ctx: JobContext):
                 None,
             )
 
-        event.speech_handle.add_done_callback(
-            completed
-        )
-
-    # ==========================================================
-    # METRICS
-    # ==========================================================
+        event.speech_handle.add_done_callback(completed)
 
     @session.on("metrics_collected")
     def on_metrics(event):
-
         metric = event.metrics
 
         common = {
@@ -341,7 +283,6 @@ async def entrypoint(ctx: JobContext):
         }
 
         if isinstance(metric, EOUMetrics):
-
             log_event(
                 guard.turn_id or turn_id,
                 "stt_finalize",
@@ -352,7 +293,6 @@ async def entrypoint(ctx: JobContext):
             )
 
         elif isinstance(metric, LLMMetrics):
-
             log_event(
                 guard.turn_id or turn_id,
                 "llm_first_token",
@@ -361,7 +301,6 @@ async def entrypoint(ctx: JobContext):
             )
 
         elif isinstance(metric, TTSMetrics):
-
             log_event(
                 guard.turn_id or turn_id,
                 "rime_first_byte",
@@ -371,10 +310,6 @@ async def entrypoint(ctx: JobContext):
                 audio_duration=metric.audio_duration,
                 **common,
             )
-
-    # ==========================================================
-    # START SESSION
-    # ==========================================================
 
     await session.start(
         agent=FieldAssistant(),
@@ -400,19 +335,11 @@ async def entrypoint(ctx: JobContext):
         sample_rate=cfg.sample_rate,
     )
 
-    # ==========================================================
-    # CHAT HISTORY
-    # ==========================================================
-
     @session.on("conversation_item_added")
     def on_conversation_item(event):
-
         item = event.item
 
-        if not hasattr(
-            item,
-            "text_content",
-        ):
+        if not hasattr(item, "text_content"):
             return
 
         print(
@@ -425,7 +352,6 @@ async def entrypoint(ctx: JobContext):
 
 
 if __name__ == "__main__":
-
     cli.run_app(
         WorkerOptions(
             entrypoint_fnc=entrypoint,

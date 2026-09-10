@@ -33,6 +33,7 @@ class Settings:
     rime_api_key: str | None = _env("RIME_API_KEY")
     deepgram_api_key: str | None = _env("DEEPGRAM_API_KEY")
     openai_api_key: str | None = _env("OPENAI_API_KEY")
+    google_api_key: str | None = _env("GOOGLE_API_KEY")
 
     rime_model_id: str = _env("RIME_MODEL_ID", "mistv2") or "mistv2"
     rime_speaker: str = _env("RIME_SPEAKER", "cove") or "cove"
@@ -64,6 +65,7 @@ class Settings:
             "RIME_API_KEY": self.rime_api_key,
             "DEEPGRAM_API_KEY": self.deepgram_api_key,
             "OPENAI_API_KEY": self.openai_api_key,
+            "GOOGLE_API_KEY": self.google_api_key,
         }
         missing = [name for name, value in required.items() if not value]
         if missing:

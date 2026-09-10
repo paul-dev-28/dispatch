@@ -1,6 +1,6 @@
 import inspect
 import re
-from collections.abc import AsyncIterable, AsyncGenerator
+from collections.abc import AsyncGenerator, AsyncIterable
 
 from livekit import rtc
 from livekit.agents import (
@@ -41,21 +41,21 @@ If you do not know something, say so rather than making it up. If a question
 is genuinely ambiguous and the missing information matters, ask one concise
 clarification.
 
-Keep spoken answers concise and natural unless the user asks for detail.
-Always speak in sync with text and generate the text slowly as compared to the voice generted.
-Always keep in mind to give short answers such that no voice backlog occurs.
-If a new qustion is asked on interrupted, discard the previous voice baklog or info and start speaking the text that is generated.
+Keep spoken answers concise and natural unless the user asks for detail, so
+that the spoken audio and the live transcript stay tightly in sync and no
+voice backlog builds up.
+
+When the user interrupts your answer with a new question, immediately
+discard the previous response and answer the new question. Never continue
+speaking the previous answer after an interruption.
 """.strip()
 
-
-# ==========================================================
-# STOP / CANCEL CONTROL
-# ==========================================================
 
 _FILLERS = (
     r"(?:please|now|speaking|talking|explaining|"
     r"reading|going|that|it|chat)"
 )
+
 
 _STOP_COMMAND_RE = re.compile(
     rf"^\s*"
@@ -65,6 +65,7 @@ _STOP_COMMAND_RE = re.compile(
     rf"\s*[.!]?\s*$",
     re.IGNORECASE,
 )
+
 
 _STOP_PREFIX_RE = re.compile(
     rf"^\s*"
@@ -85,20 +86,6 @@ def is_stop_command(text: str) -> bool:
     )
 
 
-# ==========================================================
-# BARE BACKCHANNEL / FILLER DETECTION
-# ==========================================================
-#
-# Short acknowledgement / thinking-out-loud words that STT can
-# finalize as a complete user turn (e.g. "So", "Um", "Okay") even
-# though the speaker hasn't actually asked anything yet. Forwarding
-# these to the LLM as a real turn causes the agent to awkwardly
-# keep rambling on the previous topic instead of waiting for the
-# actual question. These must NEVER invalidate the current
-# generation or interrupt in-progress speech — they are simply
-# ignored so the in-flight answer keeps playing, and the next real
-# question is answered (and spoken) fresh and on-topic.
-
 _BACKCHANNEL_RE = re.compile(
     r"^\s*"
     r"(?:so|um+|uh+|erm+|hmm+|okay|ok|well|"
@@ -117,10 +104,6 @@ def is_backchannel_only(text: str) -> bool:
     )
 
 
-# ==========================================================
-# AGENT
-# ==========================================================
-
 class FieldAssistant(Agent):
 
     def __init__(self):
@@ -128,20 +111,6 @@ class FieldAssistant(Agent):
             instructions=SYSTEM_PROMPT,
             allow_interruptions=True,
         )
-
-    # ======================================================
-    # HARD LLM GENERATION GATE
-    # ======================================================
-    #
-    # Capture the generation when this response starts.
-    #
-    # If a newer user turn invalidates that generation, the
-    # old LLM stream is immediately abandoned.
-    #
-    # IMPORTANT:
-    # We deliberately do NOT split provider chunks or insert
-    # artificial sleeps. LiveKit/provider-native streaming is
-    # preserved exactly.
 
     async def llm_node(
         self,
@@ -170,11 +139,6 @@ class FieldAssistant(Agent):
 
         try:
             async for chunk in stream:
-
-                # --------------------------------------------------
-                # HARD STALE-GENERATION CHECK
-                # --------------------------------------------------
-
                 if guard.is_stale(speech_generation):
                     log_event(
                         guard.turn_id,
@@ -183,18 +147,11 @@ class FieldAssistant(Agent):
                         generation=guard.snapshot(),
                         stale_generation=speech_generation,
                     )
-
                     return
-
-                # --------------------------------------------------
-                # PRESERVE NATIVE PROVIDER CHUNK
-                # --------------------------------------------------
 
                 yield chunk
 
         finally:
-            # Explicitly close the provider stream when an
-            # interruption causes us to leave early.
             close_stream = getattr(
                 stream,
                 "aclose",
@@ -202,11 +159,16 @@ class FieldAssistant(Agent):
             )
 
             if close_stream is not None:
-                await close_stream()
-
-    # ======================================================
-    # HARD TTS GENERATION GATE
-    # ======================================================
+                try:
+                    await close_stream()
+                except Exception as exc:
+                    log_event(
+                        guard.turn_id,
+                        "llm_stream_close_error",
+                        session_id=guard.session_id,
+                        generation=guard.snapshot(),
+                        error=str(exc),
+                    )
 
     async def tts_node(
         self,
@@ -235,11 +197,10 @@ class FieldAssistant(Agent):
         try:
             async for frame in stream:
 
-                # --------------------------------------------------
-                # HARD STALE-GENERATION CHECK
-                # --------------------------------------------------
-
+                # The generation that produced this TTS stream
+                # is no longer current.
                 if guard.is_stale(speech_generation):
+
                     log_event(
                         guard.turn_id,
                         "stale_tts_stream_terminated",
@@ -248,31 +209,16 @@ class FieldAssistant(Agent):
                         stale_generation=speech_generation,
                     )
 
-                    # Returning here only stops US from handing over
-                    # any MORE frames. It does nothing about frames
-                    # from this same stale generation that were
-                    # already forwarded to session.output.audio
-                    # before the generation flipped (Rime can
-                    # synthesize faster than realtime and get ahead
-                    # of playback). Those are still sitting in the
-                    # output's playback queue and would otherwise
-                    # keep playing on top of / instead of the new
-                    # answer -- this is the "previous answer keeps
-                    # talking" backlog. Drop them here too.
+                    # Clear any audio that may already have been
+                    # queued by this stale response.
                     if self.session.output.audio is not None:
-                        self.session.output.audio()
+                        self.session.output.audio.clear_buffer()
 
-                    # IMPORTANT:
-                    # Stop the TTS stream completely.
                     return
 
                 yield frame
 
         finally:
-            # --------------------------------------------------
-            # CLOSE THE OLD TTS STREAM
-            # --------------------------------------------------
-
             close_stream = getattr(
                 stream,
                 "aclose",
@@ -301,17 +247,7 @@ class FieldAssistant(Agent):
             new_message.text_content or ""
         ).strip()
 
-        # --------------------------------------------------
-        # BARE BACKCHANNEL / FILLER — IGNORE ENTIRELY
-        # --------------------------------------------------
-        #
-        # A lone "so", "um", "okay", etc. is not a real turn.
-        # Do this check FIRST, before any generation invalidation,
-        # buffer clearing, or forced interruption — the in-flight
-        # answer must keep playing untouched, and no reply should
-        # be generated for the filler itself. The next real
-        # question then invalidates/generates/speaks normally.
-
+        # Do not treat simple backchannels as a new question.
         if is_backchannel_only(text):
             log_event(
                 guard.turn_id,
@@ -323,15 +259,9 @@ class FieldAssistant(Agent):
 
             raise StopResponse()
 
-        # --------------------------------------------------
-        # HARD GENERATION INVALIDATION
-        # --------------------------------------------------
-        #
-        # This is the authoritative user-turn boundary.
-        #
-        # The previous generation is invalidated BEFORE waiting
-        # for LiveKit's existing speech interruption to finish.
-
+        # Every completed user turn gets a new generation.
+        # This guarantees that anything belonging to the
+        # previous response becomes stale.
         old_generation = guard.snapshot()
 
         new_generation, new_turn = guard.invalidate()
@@ -345,32 +275,41 @@ class FieldAssistant(Agent):
             transcript=text,
         )
 
-        # --------------------------------------------------
-        # CLEAR ALREADY-BUFFERED AUDIO
-        # --------------------------------------------------
-
+        # Clear queued output belonging to the previous response.
         if self.session.output.audio is not None:
             self.session.output.audio.clear_buffer()
 
-        log_event(
-            new_turn,
-            "audio_buffer_cleared",
-            session_id=guard.session_id,
-            generation=new_generation,
-        )
+            log_event(
+                new_turn,
+                "audio_buffer_cleared",
+                session_id=guard.session_id,
+                generation=new_generation,
+            )
 
-        # --------------------------------------------------
-        # FORCE LIVEKIT INTERRUPTION
-        # --------------------------------------------------
+        # Stop any currently active speech before the new response
+        # is generated.
+        try:
+            await self.session.interrupt(
+                force=True
+            )
 
-        await self.session.interrupt(
-            force=True
-        )
+            log_event(
+                new_turn,
+                "speech_interrupted_for_new_turn",
+                session_id=guard.session_id,
+                generation=new_generation,
+            )
 
-        # --------------------------------------------------
-        # PURE STOP
-        # --------------------------------------------------
+        except Exception as exc:
+            log_event(
+                new_turn,
+                "speech_interrupt_for_new_turn_failed",
+                session_id=guard.session_id,
+                generation=new_generation,
+                error=str(exc),
+            )
 
+        # Explicit stop command.
         if is_stop_command(text):
             log_event(
                 guard.turn_id,
@@ -383,13 +322,9 @@ class FieldAssistant(Agent):
 
             raise StopResponse()
 
-        # --------------------------------------------------
-        # STOP + NEW QUESTION
-        # --------------------------------------------------
-
-        prefix_match = _STOP_PREFIX_RE.match(
-            text
-        )
+        # Handle commands such as:
+        # "stop explaining quantum physics"
+        prefix_match = _STOP_PREFIX_RE.match(text)
 
         if prefix_match:
             remainder = (
@@ -424,9 +359,3 @@ class FieldAssistant(Agent):
                 original_transcript=text,
                 cleaned_transcript=remainder,
             )
-
-        # --------------------------------------------------
-        # NORMAL TURN
-        # --------------------------------------------------
-        #
-        # The framework now generates the new response normally.
